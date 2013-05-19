@@ -12,6 +12,7 @@ import lixian_query
 @with_parser(parse_size)
 @command_line_value('input', alias='i')
 @command_line_option('torrent', alias='bt')
+@command_line_value('tag')
 def add_task(args):
 	assert len(args) or args.input
 	client = create_client(args)

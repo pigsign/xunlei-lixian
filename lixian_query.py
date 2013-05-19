@@ -391,7 +391,16 @@ def build_query(client, args):
 def find_tasks_to_download(client, args):
 	base = build_query(client, args)
 	base.query_once()
-	return base.peek_download_jobs()
+        if args.tag:
+            from lixian_encoding import from_native
+            tasks = base.peek_download_jobs()
+            taskid = tasks[0]['id']
+            newFilename = args.tag + '-' + tasks[0]['name']
+            client.rename_task(tasks[0], from_native(newFilename)) #rename, add tag name prefix to filename.
+            tasks[0]['name'] = newFilename #update task name
+            return tasks
+        else:
+            return base.peek_download_jobs()
 
 def search_tasks(client, args):
 	base = build_query(client, args)
