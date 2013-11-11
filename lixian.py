@@ -50,7 +50,7 @@ logger = Logger()
 class XunleiClient:
 	page_size = 100
 	bt_page_size = 9999
-	def __init__(self, username=None, password=None, cookie_path=None, login=True, verification_code_reader=None):
+	def __init__(self, username=None, password=None, cookie_path=None, login=True, verification_code_reader=None, verification_code_fetch=False):
 		self.username = username
 		self.password = password
 		self.cookie_path = cookie_path
@@ -63,6 +63,7 @@ class XunleiClient:
 		self.set_page_size(self.page_size)
 		self.opener = urllib2.build_opener(urllib2.HTTPCookieProcessor(self.cookiejar))
 		self.verification_code_reader = verification_code_reader
+		self.verification_code_fetch = verification_code_fetch
 		if login:
 			if not self.has_logged_in():
 				self.login()
@@ -194,16 +195,21 @@ class XunleiClient:
 			raise NotImplementedError('user is not logged in')
 
 		logger.debug('login')
-		cachetime = current_timestamp()
-		check_url = 'http://login.xunlei.com/check?u=%s&cachetime=%d' % (username, cachetime)
-		login_page = self.urlopen(check_url).read()
-		verification_code = self.get_cookie('.xunlei.com', 'check_result')[2:].upper()
+
+		verification_code = None
+		if self.verification_code_fetch:
+			check_url = 'http://login.xunlei.com/check?u=%s&cachetime=%d' % (username,  current_timestamp())
+			login_page = self.urlopen(check_url).read()
+			verification_code = self.get_cookie('.xunlei.com', 'check_result')[2:].upper()
 		if not verification_code:
 			if not self.verification_code_reader:
 				raise NotImplementedError('Verification code required')
 			else:
-				verification_code_url = 'http://verify2.xunlei.com/image?cachetime=%s' % current_timestamp()
-				image = self.urlopen(verification_code_url).read()
+				image = None
+				if self.verification_code_fetch:
+					verification_code_url = 'http://verify2.xunlei.com/image?cachetime=%s' % current_timestamp()
+					image = self.urlopen(verification_code_url).read()
+					self.save_cookies()
 				verification_code = self.verification_code_reader(image)
 				if verification_code:
 					verification_code = verification_code.upper()
@@ -488,7 +494,7 @@ class XunleiClient:
 
 		response = self.urlread(upload_url, data=body, headers={'Content-Type': content_type}).decode('utf-8')
 
-		upload_success = re.search(r'<script>document\.domain="xunlei\.com";var btResult =(\{.*\});var btRtcode = 0</script>', response, flags=re.S)
+		upload_success = re.search(r'<script>document\.domain="xunlei\.com";var btResult =(\{.*\});</script>', response, flags=re.S)
 		if upload_success:
 			bt = json.loads(upload_success.group(1))
 			bt_hash = bt['infoid']
@@ -503,12 +509,12 @@ class XunleiClient:
 			# skip response check
 			# assert re.match(r'%s\({"id":"\d+","avail_space":"\d+","progress":1}\)' % jsonp, response), repr(response)
 			return bt_hash
-		already_exists = re.search(r"parent\.edit_bt_list\((\{.*\}),''\)", response, flags=re.S)
+		already_exists = re.search(r"parent\.edit_bt_list\((\{.*\}),'','0'\)", response, flags=re.S)
 		if already_exists:
 			bt = json.loads(already_exists.group(1))
 			bt_hash = bt['infoid']
 			return bt_hash
-		raise NotImplementedError()
+		raise NotImplementedError(response)
 
 	def add_torrent_task_by_info_hash(self, sha1):
 		return self.add_torrent_task_by_content(self.get_torrent_file_by_info_hash(sha1), sha1.upper()+'.torrent')
