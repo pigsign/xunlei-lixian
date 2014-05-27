@@ -172,6 +172,9 @@ def download_single_task(client, task, options):
 				print output_name + '/'
 		for f in files:
 			name = f['name']
+			match_str = u'\u3010\u79bb\u7ebf\u65e0\u6548\u3011' #escape xunlei-invalid file
+			if re.match(match_str, name): #escape xunlei-invalid file
+			    continue #escape xunlei-invalid file
 			if f['status_text'] != 'completed':
 				print 'Skipped %s file %s ...' % (f['status_text'], name.encode(default_encoding))
 				continue
